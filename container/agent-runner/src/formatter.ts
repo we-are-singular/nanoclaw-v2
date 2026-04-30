@@ -160,6 +160,7 @@ function formatSingleChat(msg: MessageInRow): string {
   const sender = content.sender || content.author?.fullName || content.author?.userName || 'Unknown';
   const time = formatLocalTime(msg.timestamp, TIMEZONE);
   const text = content.text || '';
+  const dataSuffix = formatData(content.data);
   const idAttr = msg.seq != null ? ` id="${msg.seq}"` : '';
   const replyAttr = content.replyTo?.id ? ` reply_to="${escapeXml(String(content.replyTo.id))}"` : '';
   const replyPrefix = formatReplyContext(content.replyTo);
@@ -176,7 +177,7 @@ function formatSingleChat(msg: MessageInRow): string {
       ? ` from="unknown:${escapeXml(msg.channel_type || '')}:${escapeXml(msg.platform_id || '')}"`
       : '';
 
-  return `<message${idAttr}${fromAttr} sender="${escapeXml(sender)}" time="${escapeXml(time)}"${replyAttr}>${replyPrefix}${escapeXml(text)}${attachmentsSuffix}</message>`;
+  return `<message${idAttr}${fromAttr} sender="${escapeXml(sender)}" time="${escapeXml(time)}"${replyAttr}>${replyPrefix}${escapeXml(text)}${dataSuffix}${attachmentsSuffix}</message>`;
 }
 
 function formatTaskMessage(msg: MessageInRow): string {
@@ -233,6 +234,15 @@ function formatAttachments(attachments: any[] | undefined): string {
     return url ? `[${type}: ${escapeXml(name)} (${escapeXml(url)})]` : `[${type}: ${escapeXml(name)}]`;
   });
   return '\n' + parts.join('\n');
+}
+
+function formatData(data: unknown): string {
+  if (data === undefined || data === null) return '';
+  try {
+    return `\n\n[DATA]\n${escapeXml(JSON.stringify(data, null, 2))}`;
+  } catch {
+    return '';
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

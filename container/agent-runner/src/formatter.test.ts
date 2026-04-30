@@ -134,6 +134,22 @@ describe('XML escaping', () => {
     expect(result).toContain('sender="A &amp; B &lt;Co&gt;"');
     expect(result).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
   });
+
+  it('renders structured data after chat text', () => {
+    insertMessage('m1', 'chat', {
+      sender: 'CRM',
+      text: 'Build the site for this place',
+      data: {
+        taskType: 'BUILD_WEBSITE',
+        entityId: 'abc123',
+      },
+    });
+    const result = formatMessages(getPendingMessages());
+    expect(result).toContain('Build the site for this place');
+    expect(result).toContain('[DATA]');
+    expect(result).toContain('&quot;taskType&quot;: &quot;BUILD_WEBSITE&quot;');
+    expect(result).toContain('&quot;entityId&quot;: &quot;abc123&quot;');
+  });
 });
 
 describe('stripInternalTags', () => {

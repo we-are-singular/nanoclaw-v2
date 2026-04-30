@@ -22,6 +22,7 @@ import {
 import { readContainerConfig, writeContainerConfig } from './container-config.js';
 import { CONTAINER_RUNTIME_BIN, hostGatewayArgs, readonlyMountArgs, stopContainer } from './container-runtime.js';
 import { composeGroupClaudeMd } from './claude-md-compose.js';
+import { getChannelSessionMounts } from './channels/channel-registry.js';
 import { getAgentGroup } from './db/agent-groups.js';
 import { getDb, hasTable } from './db/connection.js';
 import { initGroupFilesystem } from './group-init.js';
@@ -324,6 +325,21 @@ function buildMounts(
   if (containerConfig.additionalMounts && containerConfig.additionalMounts.length > 0) {
     const validated = validateAdditionalMounts(containerConfig.additionalMounts, agentGroup.name);
     mounts.push(...validated);
+  }
+
+  if (session.messaging_group_id) {
+    const db = getDb();
+    const mg = db
+      .prepare('SELECT channel_type, platform_id FROM messaging_groups WHERE id = ?')
+      .get(session.messaging_group_id) as { channel_type: string; platform_id: string } | undefined;
+    if (mg) {
+      const channelMounts = getChannelSessionMounts(mg.channel_type, {
+        channelType: mg.channel_type,
+        platformId: mg.platform_id,
+        threadId: session.thread_id,
+      });
+      mounts.push(...channelMounts);
+    }
   }
 
   // Provider-contributed mounts (e.g. opencode-xdg)

@@ -1,11 +1,12 @@
 /**
- * Minimal HTTP server for Chat SDK adapter webhooks.
+ * Minimal shared HTTP server for webhook-backed channel adapters.
  *
  * Starts lazily on first adapter registration. Routes requests by path:
- *   /webhook/{adapterName} → chat.webhooks[adapterName](request)
+ *   /webhook/{adapterName}
  *
- * Multiple Chat instances can register adapters — each adapter name maps
- * to its owning Chat instance.
+ * The handler can come from either:
+ *   - a Chat SDK adapter (`chat.webhooks[adapterName]`), or
+ *   - a native NanoClaw channel adapter.
  */
 import http from 'http';
 
@@ -13,14 +14,17 @@ import type { Chat } from 'chat';
 
 import { log } from './log.js';
 
-const DEFAULT_PORT = 3000;
+const DEFAULT_PORT = 3011;
 
 interface WebhookEntry {
   chat: Chat;
   adapterName: string;
 }
 
+type NativeWebhookHandler = (request: Request) => Promise<Response>;
+
 const routes = new Map<string, WebhookEntry>();
+const nativeAdapters = new Map<string, NativeWebhookHandler>();
 let server: http.Server | null = null;
 
 /** Convert Node.js IncomingMessage to a Web API Request. */
@@ -76,6 +80,13 @@ export function registerWebhookAdapter(chat: Chat, adapterName: string): void {
   log.info('Webhook adapter registered', { adapter: adapterName, path: `/webhook/${adapterName}` });
 }
 
+/** Register a native webhook adapter on the shared server. */
+export function registerNativeWebhookAdapter(adapterName: string, handler: NativeWebhookHandler): void {
+  nativeAdapters.set(adapterName, handler);
+  ensureServer();
+  log.info('Native webhook adapter registered', { adapter: adapterName, path: `/webhook/${adapterName}` });
+}
+
 function ensureServer(): void {
   if (server) return;
 
@@ -93,6 +104,20 @@ function ensureServer(): void {
     }
 
     const adapterName = match[1];
+    const nativeHandler = nativeAdapters.get(adapterName);
+    if (nativeHandler) {
+      try {
+        const webReq = await toWebRequest(req);
+        const webRes = await nativeHandler(webReq);
+        await fromWebResponse(webRes, res);
+      } catch (err) {
+        log.error('Native webhook handler error', { adapter: adapterName, url: req.url, err });
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal Server Error');
+      }
+      return;
+    }
+
     const entry = routes.get(adapterName);
     if (!entry) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -119,7 +144,7 @@ function ensureServer(): void {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    log.info('Webhook server started', { port, adapters: [...routes.keys()] });
+    log.info('Webhook server started', { port, adapters: [...new Set([...routes.keys(), ...nativeAdapters.keys()])] });
   });
 }
 
@@ -129,6 +154,7 @@ export async function stopWebhookServer(): Promise<void> {
     await new Promise<void>((resolve) => server!.close(() => resolve()));
     server = null;
     routes.clear();
+    nativeAdapters.clear();
     log.info('Webhook server stopped');
   }
 }

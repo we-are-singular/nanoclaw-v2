@@ -25,6 +25,18 @@ export interface ChannelSetup {
   onAction(questionId: string, selectedOption: string, userId: string): void;
 }
 
+export interface ChannelMountContext {
+  channelType: string;
+  platformId: string | null;
+  threadId: string | null;
+}
+
+export interface ChannelContainerMount {
+  hostPath: string;
+  containerPath: string;
+  readonly: boolean;
+}
+
 /** Delivery address used for reply-to overrides and (normally) the inbound's own origin. */
 export interface DeliveryAddress {
   channelType: string;
@@ -172,7 +184,10 @@ export type ChannelAdapterFactory = () => ChannelAdapter | Promise<ChannelAdapte
 export interface ChannelRegistration {
   factory: ChannelAdapterFactory;
   containerConfig?: {
-    mounts?: Array<{ hostPath: string; containerPath: string; readonly: boolean }>;
+    mounts?: ChannelContainerMount[];
     env?: Record<string, string>;
+    session?: {
+      mounts?: (ctx: ChannelMountContext) => ChannelContainerMount[];
+    };
   };
 }

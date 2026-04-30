@@ -4,7 +4,7 @@
  * Channels self-register on import. The host calls initChannelAdapters() at startup
  * to instantiate and set up all registered adapters.
  */
-import type { ChannelAdapter, ChannelRegistration, ChannelSetup } from './adapter.js';
+import type { ChannelAdapter, ChannelMountContext, ChannelRegistration, ChannelSetup } from './adapter.js';
 import { log } from '../log.js';
 
 const SETUP_RETRY_DELAYS_MS = [2000, 5000, 10000];
@@ -44,6 +44,10 @@ export function getRegisteredChannelNames(): string[] {
 /** Get container config for a channel (used by container-runner for additional mounts/env). */
 export function getChannelContainerConfig(name: string): ChannelRegistration['containerConfig'] {
   return registry.get(name)?.containerConfig;
+}
+
+export function getChannelSessionMounts(name: string, ctx: ChannelMountContext) {
+  return registry.get(name)?.containerConfig?.session?.mounts?.(ctx) ?? [];
 }
 
 /**
